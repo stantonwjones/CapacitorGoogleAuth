@@ -39,8 +39,27 @@ import java.util.concurrent.Executors;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.OnFailureListener;
 
+// --- NEW IMPORTS ---
+import androidx.credentials.Credential;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.GetPasswordOption;
+import androidx.credentials.GetPublicKeyCredentialOption;
+import androidx.credentials.PublicKeyCredential;
+import androidx.credentials.exceptions.GetCredentialException;
+
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
+import com.google.android.libraries.identity.googleid.Credential;
+import com.google.android.libraries.identity.googleid.CustomCredential;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
+
+// TODO: use https://developer.android.com/identity/sign-in/credential-manager-siwg
 @CapacitorPlugin()
 public class GoogleAuth extends Plugin {
+  private final static String LOG_TAG = "CapacitorGoogleAuth::";
   private final static String VERIFY_TOKEN_URL = "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=";
   private final static String FIELD_TOKEN_EXPIRES_IN = "expires_in";
   private final static String FIELD_ACCESS_TOKEN = "accessToken";
@@ -51,9 +70,29 @@ public class GoogleAuth extends Plugin {
 
   public static final int KAssumeStaleTokenSec = 60;
 
-  private GoogleSignInClient googleSignInClient;
+  private final static ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
 
-  public void loadSignInClient (String clientId, boolean forceCodeForRefreshToken, String[] scopeArray) {
+  private GoogleSignInClient googleSignInClient;
+  private CredentialManager credentialManager;
+  private GetGoogleIdOption getGoogleIdOption;
+  private GetSignInWithGoogleOption signInWithGoogleButtonOption;
+
+  public void loadSignInClient (String webClientId, boolean forceCodeForRefreshToken, String[] scopeArray) {
+    //--- BEGIN NEW CODE HERE ---
+    credentialManager = CredentialManager.create(getContext());
+    getGoogleIdOption = GetGoogleIdOption.Builder()
+      .setFilterByAuthorizedAccounts(true)
+      .setServerClientId(webClientId)
+      .setAutoSelectEnabled(true) // Re-logs in if possible
+      // .setNonce(<nonce string to use when generating a Google ID token>)
+      .build()
+
+    signInWithGoogleButtonOption = GetSignInWithGoogleOption.Builder()
+      .setServerClientId(webClientId)
+      // .setNonce(<nonce string to use when generating a Google ID token>)
+      .build()
+
+    //--- END NEW CODE ---
     GoogleSignInOptions.Builder googleSignInBuilder = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
       .requestIdToken(clientId)
       .requestEmail();
@@ -269,4 +308,85 @@ public class GoogleAuth extends Plugin {
   private void rejectWithNullClientError(final PluginCall call) {
     call.reject("Google services are not ready. Please call initialize() first");
   }
+
+  //--- BEGIN NEW CODE HERE ---
+  private void initiateSigninUsingCredentialManager() {
+    GetCredentialRequest request = GetCredentialRequest.Builder()
+      .addCredentialOption(signInWithGoogleButtonOption)
+      .build()
+
+    credentialManager.getCredentialAsync(
+      // Use activity based context to avoid undefined
+      // system UI launching behavior
+      getActivity(),
+      request,
+      cancellationSignal,
+      EXECUTOR,
+      new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+          @Override
+          public void onResult(GetCredentialResponse result) {
+              handleSignIn(result);
+          }
+
+          @Override
+          public void onError(GetCredentialException e) {
+              handleFailure(e);
+          }
+      }
+    );
+
+    // GetGoogleIdOption googleIdOption = GetGoogleIdOption.Builder()
+    //   .setFilterByAuthorizedAccounts(true)
+    //   .setServerClientId(webClientId)
+    //   .setAutoSelectEnabled(true) // Re-logs in if possible
+    //   // .setNonce(<nonce string to use when generating a Google ID token>)
+    //   .build()
+
+    // GetCredentialRequest request = GetCredentialRequest.Builder()
+    //   .addCredentialOption(googleIdOption)
+    //   .build()
+
+    // EXECUTOR.execute(() -> {
+    //   try {
+    //     handleSignIn(credentialManager.getCredential(request, activityContext))
+    //   } catch (GetCredentialException e) {
+    //     handleFailure(e)
+    //   }
+    // });
+  }
+  
+  private void handleSignIn(GetCredentialResponse result) {
+    // Handle the successfully returned credential.
+    Credential credential = result.getCredential()
+
+    if (credential instanceof CustomCredential) {
+      // if (GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_SIWG_CREDENTIAL.equals(credential.getType())) {
+      if (GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(credential.getType())) {
+        try {
+          GoogleIdTokenCredential customCred = GoogleIdTokenCredential.createFrom(credential.getData());
+            // Extract the required credentials and complete the
+            // authentication as per the federated sign in or any external
+            // sign in library flow
+
+            // You can use the members of googleIdTokenCredential directly for UX
+            // purposes, but don't use them to store or control access to user
+            // data. For that you first need to validate the token:
+            // pass googleIdTokenCredential.getIdToken() to the backend server.
+            // GoogleIdTokenVerifier verifier = ... // see validation instructions
+            // GoogleIdToken idToken = verifier.verify(idTokenString);
+        } catch (Exception e) {
+            // Unlikely to happen. If it does, you likely need to update the
+            // dependency version of your external sign-in library.
+            Log.e(LOG_TAG, "Failed to parse an GoogleIdTokenCredential", e);
+        }
+      } else {
+          // Catch any unrecognized custom credential type here.
+          Log.e(LOG_TAG, "Unexpected type of credential");
+      }
+    } else {
+      // Catch any unrecognized credential type here.
+      Log.e(LOG_TAG, "Unexpected type of credential");
+    }
+  }
+  //--- END NEW CODE ---
 }
