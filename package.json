@@ -1,6 +1,6 @@
 {
-  "name": "@codetrix-studio/capacitor-google-auth",
-  "version": "3.4.0-rc.4",
+  "name": "@projectinvicta/capacitor-google-auth",
+  "version": "0.0.1",
   "description": "Google Auth plugin for capacitor.",
   "main": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
@@ -13,7 +13,7 @@
     "test": "echo \"no test specified\"",
     "docgen": "docgen --api GoogleAuthPlugin --output-readme README.md"
   },
-  "author": "CodetrixStudio",
+  "author": "Project Invicta",
   "license": "MIT",
   "devDependencies": {
     "@capacitor/android": "^6.0.0",
@@ -60,10 +60,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/CodetrixStudio/CapacitorGoogleAuth"
+    "url": "https://github.com/stantonwjones/CapacitorGoogleAuth"
   },
   "bugs": {
-    "url": "https://github.com/CodetrixStudio/CapacitorGoogleAuth/issues"
+    "url": "https://github.com/stantonwjones/CapacitorGoogleAuth/issues"
   },
   "prettier": "@ionic/prettier-config"
 }
